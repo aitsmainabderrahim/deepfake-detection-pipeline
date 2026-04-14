@@ -1,0 +1,41 @@
+# DeepFake Detector (YOLOv8) — Dependencies
+
+# YOLOv8 (face detection + backbone)
+ultralytics>=8.0.0
+
+# Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Computer Vision
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+Pillow>=10.0.0
+scikit-image>=0.21.0          # LBP texture features
+albumentations>=1.3.0         # Augmentation pipeline
+
+# Scientific Computing
+numpy>=1.24.0
+scipy>=1.11.0
+scikit-learn>=1.3.0           # Metrics, t-SNE
+
+# Data
+pandas>=2.0.0
+tqdm>=4.65.0
+h5py>=3.9.0
+
+# Visualization & Logging
+matplotlib>=3.7.0
+seaborn>=0.12.0
+tensorboard>=2.13.0
+
+# Web UI
+streamlit>=1.25.0
+plotly>=5.15.0
+
+# Config & Utils
+PyYAML>=6.0
+click>=8.1.0
+
+# Testing
+pytest>=7.4.0
