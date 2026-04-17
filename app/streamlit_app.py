@@ -9,15 +9,19 @@ import tempfile
 from pathlib import Path
 
 import cv2
+import av
 import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import torch
+from streamlit_webrtc import webrtc_streamer
 
+# 1. Page Configuration (تكون هي الأولى)
 st.set_page_config(
     page_title="DeepFake Detector (YOLOv8)",
-    page_icon="🔍", layout="wide",
+    page_icon="🔍", 
+    layout="wide",
     initial_sidebar_state="expanded",
 )
 
@@ -46,7 +50,6 @@ def load_pipeline(checkpoint: str, config_path: str):
     model  = build_model(cfg)
     ckpt   = torch.load(checkpoint, map_location=device)
     
-    # التعامل مع الـ Dictionary Key "model_state"
     state_dict = ckpt["model_state"] if isinstance(ckpt, dict) and "model_state" in ckpt else ckpt
     model.load_state_dict(state_dict)
     model.to(device).eval()
@@ -137,7 +140,7 @@ def tab_image(model, cfg, device, extractor, threshold):
 
     if not faces:
         st.warning("No face detected. Try a clearer, front-facing photo.")
-        st.image(img_rgb, use_column_width=True)
+        st.image(img_rgb, use_container_width=True)
         return
 
     st.success(f"✓ {len(faces)} face(s) detected")
@@ -154,9 +157,9 @@ def tab_image(model, cfg, device, extractor, threshold):
             x1,y1,x2,y2 = map(int, box)
             color = (220,50,50) if prob >= threshold else (50,220,50)
             cv2.rectangle(annotated, (x1,y1), (x2,y2), color, 3)
-            st.image(annotated, caption="Detected box", use_column_width=True)
+            st.image(annotated, caption="Detected box", use_container_width=True)
         with c2:
-            st.image(face_rgb, caption="Face crop (224×224)", use_column_width=True)
+            st.image(face_rgb, caption="Face crop (224×224)", use_container_width=True)
         with c3:
             st.markdown(verdict_html(prob, threshold), unsafe_allow_html=True)
             st.markdown(f"<br>**Raw P(fake):** `{prob:.4f}`", unsafe_allow_html=True)
@@ -239,13 +242,11 @@ def tab_video(model, cfg, device, extractor, threshold):
         st.error("No faces found in video.")
         return
 
-    # --- Voting Logic ---
     probs = np.array(probs)
     mean_p = probs.mean()
     fake_frames_count = np.sum(probs >= threshold)
     fake_ratio = fake_frames_count / len(probs)
 
-    # القرار النهائي: إذا فات 10% من الفريمات الشك، راه فايك
     is_final_fake = fake_ratio >= 0.1 
     final_verdict = "FAKE ⚠️" if is_final_fake else "REAL ✅"
 
@@ -254,11 +255,9 @@ def tab_video(model, cfg, device, extractor, threshold):
     c2.metric("Frames as FAKE", f"{fake_ratio*100:.1f}%")
     c3.metric("Verdict", final_verdict)
 
-    # عرض الـ Widget النهائي بالألوان الصحيحة
     display_p = max(mean_p, threshold + 0.05) if is_final_fake else min(mean_p, threshold - 0.05)
     st.markdown(verdict_html(display_p, threshold), unsafe_allow_html=True)
 
-    # Plotly Chart
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=times, y=probs, mode="lines+markers",
                              line=dict(color="#ef4444", width=2),
@@ -272,7 +271,46 @@ def tab_video(model, cfg, device, extractor, threshold):
     st.plotly_chart(fig, use_container_width=True)
 
 
-# ── Tab 3: About ──────────────────────────────────────────────────────────────
+# ── Tab 3: Real-Time Live ─────────────────────────────────────────────────────
+
+def tab_live(model, cfg, device, extractor, threshold):
+    st.header("🎥 Real-Time Detection")
+    st.write("Live analysis - Full Width Mode")
+
+    class VideoProcessor:
+        def recv(self, frame):
+            img = frame.to_ndarray(format="bgr24")
+            faces = extractor.extract_all(img)
+            
+            for face_crop, box in faces:
+                prob = predict_face(model, cfg, device, face_crop)
+                is_fake = prob >= threshold
+                color = (0, 0, 255) if is_fake else (0, 255, 0)
+                label = f"{'FAKE' if is_fake else 'REAL'} {prob:.2f}"
+                
+                x1, y1, x2, y2 = map(int, box)
+                cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+                cv2.putText(img, label, (x1, y1 - 10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+    webrtc_streamer(
+        key="deepfake-live-full-width",
+        video_frame_callback=VideoProcessor().recv,
+        media_stream_constraints={
+            "video": True,
+            "audio": False
+        },
+        rtc_configuration={
+            "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+        },
+        async_processing=True,
+    )
+
+    st.info("💡 Tip: Full-screen mode might show more lag depending on your camera resolution.")
+
+# ── Tab 4: About ──────────────────────────────────────────────────────────────
 
 def tab_about():
     st.header("📖 Architecture & Usage")
@@ -304,12 +342,15 @@ def main():
     else:
         st.warning(f"Checkpoint `{ckpt}` not found.")
 
-    t1, t2, t3 = st.tabs(["📷 Image", "🎬 Video", "📖 About"])
+    t1, t2, t3, t4 = st.tabs(["📷 Image", "🎬 Video", "🎥 Live", "📖 About"])
+    
     with t1:
         if model: tab_image(model, cfg, device, extractor, threshold)
     with t2:
         if model: tab_video(model, cfg, device, extractor, threshold)
     with t3:
+        if model: tab_live(model, cfg, device, extractor, threshold)
+    with t4:
         tab_about()
 
 if __name__ == "__main__":

@@ -32,7 +32,9 @@ tensorboard>=2.13.0
 # Web UI
 streamlit>=1.25.0
 plotly>=5.15.0
-
+streamlit-webrtc
+opencv-python-headless
+av
 # Config & Utils
 PyYAML>=6.0
 click>=8.1.0
