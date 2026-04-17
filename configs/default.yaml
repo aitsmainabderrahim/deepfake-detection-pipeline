@@ -1,0 +1,103 @@
+
+project:
+  name: "deepfake_yolo"
+  seed: 42
+  device: "cuda"
+  mixed_precision: true
+
+paths:
+  data_root: "/kaggle/working/deepfake_yolo/data/"
+  faces_dir: "/kaggle/working/deepfake_yolo/data/faces/manifest.csv"
+  weights_dir: "/kaggle/working/deepfake_yolo/weights/"
+  checkpoints: "/kaggle/working/deepfake_yolo/weights/checkpoints/"
+  logs: "/kaggle/working/deepfake_yolo/logs/"
+  results: "/kaggle/working/deepfake_yolo/results/"
+
+face_detector:
+  weights: "weights/yolov8n-face.pt"
+  confidence: 0.4
+  iou: 0.5
+  imgsz: 640
+  device: "cpu"
+  scale_factor: 1.3
+  min_face_size: 60
+
+data:
+  dataset: "faceforensics"
+  compression: "c23"
+  image_size: 224
+  num_frames_per_video: 30
+  train_ratio: 0.70
+  val_ratio:   0.15
+  test_ratio:  0.15
+
+augmentation:
+  horizontal_flip: true
+  rotation_limit: 10
+  brightness_contrast: true
+  gaussian_noise: true
+  jpeg_compression:
+    enabled: true
+    quality_lower: 60
+    quality_upper: 100
+  coarse_dropout: true
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std:  [0.229, 0.224, 0.225]
+
+features:
+  use_fft: true
+  use_srm: true
+  use_lbp: true
+  use_gradient: true
+
+model:
+  yolo_variant: "s"            # غيرناها لـ "s" باش نصلحو مشكل الـ 896
+  yolo_weights: "weights/yolov8s.pt" # غادي يتيليشارجي الأوزان ديال النسخة Small
+  image_size: 224
+  num_classes: 1
+  dropout: 0.3
+  use_freq_branch: true
+  use_attention: true
+  use_aux_head: true
+  freeze_backbone_epochs: 3
+
+training:
+  epochs: 30
+  batch_size: 16
+  num_workers: 4
+  pin_memory: true
+  gradient_clip: 1.0
+  optimizer:
+    name: "adamw"
+    lr: 0.0003
+    weight_decay: 0.0001
+    backbone_lr_multiplier: 0.05
+  scheduler:
+    name: "cosine_warm_restarts"
+    T_0: 10
+    T_mult: 2
+    eta_min: 0.000001
+  loss:
+    primary: "focal"
+    label_smoothing: 0.1
+    focal_gamma: 2.0
+    focal_alpha: 0.75
+    aux_weight: 0.3
+  early_stopping:
+    enabled: true
+    patience: 7
+    monitor: "val_auc"
+
+evaluation:
+  threshold: 0.5
+  tta_enabled: true
+  tta_steps: 5
+
+realtime:
+  camera_id: 0
+  display_width: 1280
+  display_height: 720
+  temporal_smoothing_window: 10
+  confidence_threshold: 0.5
+  min_face_size: 60

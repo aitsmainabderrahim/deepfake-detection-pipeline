@@ -1,0 +1,120 @@
+# ============================================================
+#  DeepFake Detector (YOLOv8) — Default Configuration
+# ============================================================
+
+project:
+  name: "deepfake_yolo"
+  seed: 42
+  device: "cuda"          # "cpu" | "cuda" | "mps"
+  mixed_precision: true
+
+# ── Paths ────────────────────────────────────────────────────
+paths:
+  data_root:    "data/"
+  faces_dir:    "data/faces/"
+  weights_dir:  "weights/"
+  checkpoints:  "weights/checkpoints/"
+  logs:         "logs/"
+  results:      "results/"
+
+# ── Face Detector (Stage 1) ───────────────────────────────────
+face_detector:
+  weights: "weights/yolov8n-face.pt"   # YOLOv8 fine-tuned on WiderFace
+  confidence: 0.4
+  iou: 0.5
+  imgsz: 640
+  device: "cpu"                        # Face detector can run on CPU
+  scale_factor: 1.3                    # Padding around detected face
+  min_face_size: 60                    # Min face width/height in pixels
+
+# ── Dataset ──────────────────────────────────────────────────
+data:
+  dataset: "faceforensics"
+  compression: "c23"
+  image_size: 224
+  num_frames_per_video: 30
+  train_ratio: 0.70
+  val_ratio:   0.15
+  test_ratio:  0.15
+
+# ── Augmentation ─────────────────────────────────────────────
+augmentation:
+  horizontal_flip: true
+  rotation_limit: 10
+  brightness_contrast: true
+  gaussian_noise: true
+  jpeg_compression:
+    enabled: true
+    quality_lower: 60
+    quality_upper: 100
+  coarse_dropout: true
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std:  [0.229, 0.224, 0.225]
+
+# ── Feature Branches ──────────────────────────────────────────
+features:
+  use_fft: true             # High-frequency FFT maps (5 channels)
+  use_srm: true             # SRM noise residuals (3 channels)
+  use_lbp: true             # Local Binary Patterns (1 channel)
+  use_gradient: true        # Gradient map (1 channel)
+  # Total auxiliary channels: 10
+
+# ── Model (Stage 2) ───────────────────────────────────────────
+model:
+  yolo_variant: "yolov8n"          # yolov8n | yolov8s | yolov8m
+  yolo_weights: "weights/yolov8n.pt"  # Pretrained COCO weights for backbone
+  image_size: 224
+  num_classes: 1                   # Binary: Real(0) / Fake(1)
+  dropout: 0.3
+  use_freq_branch: true            # FFT/SRM auxiliary branch
+  use_attention: true              # Cross-branch attention fusion
+  use_aux_head: true               # Auxiliary loss on freq branch
+  freeze_backbone_epochs: 3        # Freeze YOLOv8 backbone initially
+
+# ── Training ─────────────────────────────────────────────────
+training:
+  epochs: 30
+  batch_size: 32
+  num_workers: 8
+  pin_memory: true
+  gradient_clip: 1.0
+
+  optimizer:
+    name: "adamw"
+    lr: 3e-4
+    weight_decay: 1e-4
+    backbone_lr_multiplier: 0.05   # Much lower LR for pretrained backbone
+
+  scheduler:
+    name: "cosine_warm_restarts"
+    T_0: 10
+    T_mult: 2
+    eta_min: 1e-6
+
+  loss:
+    primary: "focal"
+    label_smoothing: 0.1
+    focal_gamma: 2.0
+    focal_alpha: 0.75
+    aux_weight: 0.3
+
+  early_stopping:
+    enabled: true
+    patience: 7
+    monitor: "val_auc"
+
+# ── Evaluation ───────────────────────────────────────────────
+evaluation:
+  threshold: 0.5
+  tta_enabled: true
+  tta_steps: 5
+
+# ── Real-Time Detection ──────────────────────────────────────
+realtime:
+  camera_id: 0
+  display_width: 1280
+  display_height: 720
+  temporal_smoothing_window: 10
+  confidence_threshold: 0.5
+  min_face_size: 60
