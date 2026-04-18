@@ -5,8 +5,6 @@
 ![Gradio](https://img.shields.io/badge/UI-Gradio-orange.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-### Master-Level Computer Vision Project (M2)
-
 > Two-stage real-time deepfake detection:
 > **Stage 1** — YOLOv8 face detector (locates every face in the frame)
 > **Stage 2** — YOLOv8 backbone + custom classification head (REAL / FAKE per face)
